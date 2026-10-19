@@ -1,0 +1,15 @@
+{
+  "name": "linko",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Linko encrypted messenger server",
+  "main": "server/src/index.js",
+  "scripts": {
+    "start": "node server/src/index.js",
+    "test": "node tests/server-smoke.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
