@@ -1,0 +1,16 @@
+{
+  "name": "linko-server",
+  "version": "1.0.0",
+  "description": "Linko messaging server — auth, presence, encrypted message relay, WebRTC signaling",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node ../tests/server-smoke.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

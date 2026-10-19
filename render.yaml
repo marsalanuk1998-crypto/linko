@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: linko
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LINKO_HOST
+        value: "0.0.0.0"

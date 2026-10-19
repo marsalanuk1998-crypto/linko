@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B1220" />
+  <meta name="color-scheme" content="dark" />
+  <title>Linko</title>
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="icon" href="icons/icon-192.png" />
+</head>
+<body>
+  <div id="app">
+    <!-- Boot -->
+    <section id="screen-boot" class="screen center">
+      <div class="logo-mark">L</div>
+      <h1>Linko</h1>
+      <p class="muted">Secure messaging</p>
+      <div class="spinner"></div>
+    </section>
+
+    <!-- Auth -->
+    <section id="screen-auth" class="screen hidden">
+      <div class="auth-card">
+        <div class="logo-mark sm">L</div>
+        <h1>Linko</h1>
+        <p class="muted">Private chats &amp; encrypted calls</p>
+        <div class="tabs">
+          <button type="button" class="tab active" data-tab="login">Log in</button>
+          <button type="button" class="tab" data-tab="register">Create account</button>
+        </div>
+        <form id="form-login" class="auth-form">
+          <label>Phone number<input name="phone" type="tel" autocomplete="tel" placeholder="+923001234567" required /></label>
+          <label>PIN<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="4–32 digits" minlength="4" required /></label>
+          <button type="submit" class="btn primary block">Log in</button>
+        </form>
+        <form id="form-register" class="auth-form hidden">
+          <label>Display name<input name="displayName" type="text" maxlength="40" placeholder="Your name" required /></label>
+          <label>Phone number<input name="phone" type="tel" autocomplete="tel" placeholder="+923001234567" required /></label>
+          <label>PIN (remember this)<input name="pin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="4–32 digits" minlength="4" required /></label>
+          <button type="submit" class="btn primary block">Create account</button>
+        </form>
+        <details class="server-details">
+          <summary>Server settings</summary>
+          <label>Server URL<input id="server-url" type="url" placeholder="http://192.168.1.10:8787" /></label>
+          <button type="button" id="btn-save-server" class="btn ghost block">Save server</button>
+          <p class="hint">Both phones must use the same Linko server URL.</p>
+        </details>
+        <p id="auth-error" class="error" hidden></p>
+      </div>
+    </section>
+
+    <!-- Chats list -->
+    <section id="screen-chats" class="screen hidden col">
+      <header class="topbar">
+        <div>
+          <div class="brand">Linko</div>
+          <div id="me-line" class="sub"></div>
+        </div>
+        <div class="top-actions">
+          <button type="button" id="btn-search" class="icon-btn" title="Find people" aria-label="Find people">⌕</button>
+          <button type="button" id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+        </div>
+      </header>
+      <div id="chat-list" class="list grow"></div>
+      <p id="empty-chats" class="empty hidden">No chats yet. Tap ⌕ to find someone by phone or Linko ID.</p>
+    </section>
+
+    <!-- Search users -->
+    <section id="screen-search" class="screen hidden col">
+      <header class="topbar">
+        <button type="button" class="icon-btn back" data-back="chats" aria-label="Back">←</button>
+        <input id="search-input" class="search-input" type="search" placeholder="Phone, Linko ID, or name" autocomplete="off" />
+      </header>
+      <div id="search-results" class="list grow"></div>
+    </section>
+
+    <!-- Settings -->
+    <section id="screen-settings" class="screen hidden col">
+      <header class="topbar">
+        <button type="button" class="icon-btn back" data-back="chats" aria-label="Back">←</button>
+        <div class="brand">Settings</div>
+      </header>
+      <div class="settings-body grow">
+        <div class="card">
+          <div class="row"><span>Name</span><strong id="set-name"></strong></div>
+          <div class="row"><span>Phone</span><strong id="set-phone"></strong></div>
+          <div class="row"><span>Linko ID</span><strong id="set-linko"></strong></div>
+        </div>
+        <div class="card">
+          <label>Server URL<input id="set-server" type="url" /></label>
+          <button type="button" id="btn-set-server" class="btn ghost block">Save &amp; reconnect</button>
+        </div>
+        <div class="card">
+          <p class="hint">Messages use end-to-end encryption. Calls use DTLS-SRTP. The server cannot read chat bodies or call media.</p>
+          <button type="button" id="btn-logout" class="btn danger block">Log out</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Conversation -->
+    <section id="screen-chat" class="screen hidden col">
+      <header class="topbar chat-top">
+        <button type="button" class="icon-btn back" data-back="chats" aria-label="Back">←</button>
+        <div class="peer grow">
+          <div id="peer-name" class="brand"></div>
+          <div id="peer-status" class="sub">…</div>
+        </div>
+        <button type="button" id="btn-voice" class="icon-btn" title="Voice call" aria-label="Voice call">📞</button>
+        <button type="button" id="btn-video" class="icon-btn" title="Video call" aria-label="Video call">🎥</button>
+      </header>
+      <div id="messages" class="messages grow"></div>
+      <div id="typing-line" class="typing hidden">typing…</div>
+      <footer class="composer">
+        <button type="button" id="btn-attach" class="icon-btn" title="Attach" aria-label="Attach">＋</button>
+        <input id="file-input" type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.zip" hidden />
+        <textarea id="msg-input" rows="1" placeholder="Message" enterkeyhint="send"></textarea>
+        <button type="button" id="btn-voice-note" class="icon-btn" title="Hold to record" aria-label="Voice note">🎤</button>
+        <button type="button" id="btn-send" class="icon-btn send" title="Send" aria-label="Send">➤</button>
+      </footer>
+    </section>
+
+    <!-- Incoming / active call overlay -->
+    <section id="screen-call" class="screen call-overlay hidden">
+      <div class="call-panel">
+        <div id="call-peer" class="call-peer">Calling…</div>
+        <div id="call-state" class="call-state">Connecting</div>
+        <div class="video-wrap">
+          <video id="remote-video" autoplay playsinline></video>
+          <video id="local-video" autoplay playsinline muted></video>
+        </div>
+        <audio id="remote-audio" autoplay></audio>
+        <div class="call-actions">
+          <button type="button" id="btn-call-accept" class="fab accept hidden" aria-label="Accept">✓</button>
+          <button type="button" id="btn-call-reject" class="fab reject" aria-label="Reject / Hang up">✕</button>
+          <button type="button" id="btn-call-mute" class="fab ghost hidden" aria-label="Mute">🔇</button>
+          <button type="button" id="btn-call-cam" class="fab ghost hidden" aria-label="Camera">📷</button>
+        </div>
+        <p class="hint call-secure">🔒 Encrypted call (DTLS-SRTP)</p>
+      </div>
+    </section>
+  </div>
+  <script src="js/crypto.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/webrtc.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
