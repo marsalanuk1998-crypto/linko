@@ -13,13 +13,7 @@ const LinkoStore = (() => {
     return localStorage.getItem(K.server) || defaultServer();
   }
   function defaultServer() {
-    // When served by Linko server, use same origin; Android WebView assets fall back to placeholder.
-    if (location.protocol === 'http:' || location.protocol === 'https:') {
-      if (location.hostname && location.hostname !== 'appassets.androidplatform.net') {
-        return location.origin;
-      }
-    }
-    return 'http://127.0.0.1:8787';
+    return 'https://linko-018a.onbelmo.uk';
   }
   function setServer(url) {
     localStorage.setItem(K.server, String(url || '').replace(/\/$/, ''));
