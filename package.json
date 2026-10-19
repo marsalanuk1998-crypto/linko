@@ -1,6 +1,6 @@
 {
   "name": "linko",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Linko encrypted messenger server",
   "main": "server/src/index.js",
@@ -8,8 +8,11 @@
     "start": "node server/src/index.js",
     "test": "node tests/server-smoke.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
+    "nodemailer": "^6.10.1",
     "ws": "^8.18.0"
   }
 }

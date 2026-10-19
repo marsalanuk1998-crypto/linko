@@ -415,82 +415,227 @@
     const v = $('#server-url').value.trim();
     if (v) LinkoStore.setServer(v);
     toastError($('#auth-error'), 'Server saved: ' + LinkoStore.getServer());
+    if (typeof refreshAuthInfo === 'function') refreshAuthInfo();
     $('#auth-error').style.color = 'var(--accent)';
   };
 
+  // ---- Auth: phone + PIN, free OTP via WhatsApp or email (no SMS) ----
+  let authInfo = { channels: [], inviteRequired: { email: true, whatsapp: false, none: true } };
+  let otpCtx = null; // { kind: 'register'|'login'|'reset', ticket, channel, retry(channel) }
+  const CH_LABEL = { whatsapp: 'WhatsApp (this phone number)', email: 'Email' };
+
+  function deviceId() {
+    let d = localStorage.getItem('linko.device');
+    if (!d) {
+      const b = new Uint8Array(18); crypto.getRandomValues(b);
+      d = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('linko.device', d);
+    }
+    return d;
+  }
+
+  function authErr(msg, ok) {
+    toastError($('#auth-error'), msg);
+    $('#auth-error').style.color = ok ? 'var(--accent)' : 'var(--danger)';
+  }
+
+  function showAuthForm(id) {
+    for (const f of ['form-login', 'form-register', 'form-otp', 'form-reset']) $('#' + f).classList.toggle('hidden', f !== id);
+    $('.tabs').classList.toggle('hidden', id === 'form-otp' || id === 'form-reset');
+  }
+
+  function updateRegisterFields() {
+    const form = $('#form-register');
+    const ch = form.querySelector('select[name=channel]').value || 'none';
+    const emailLabel = $('#reg-email-label');
+    const emailInput = form.querySelector('input[name=email]');
+    emailInput.required = ch === 'email';
+    emailLabel.firstChild.textContent = ch === 'email' ? 'Email (code is sent here)' : 'Email (optional, for PIN recovery later)';
+    const inv = authInfo.inviteRequired[ch] ?? true;
+    $('#invite-label').classList.toggle('hidden', !inv);
+    form.querySelector('input[name=inviteCode]').required = !!inv;
+    $('#invite-label-text').textContent = inv ? 'Invite code (required)' : 'Invite code';
+    $('#btn-register-submit').textContent = ch === 'none' ? 'Create account' : 'Send OTP';
+  }
+
+  async function refreshAuthInfo() {
+    try {
+      authInfo = await LinkoApi.req('/api/auth-info', { auth: false });
+    } catch { authInfo = { channels: [], inviteRequired: { email: true, whatsapp: false, none: true } }; }
+    const chans = authInfo.channels || [];
+    $$('.channel-select').forEach(sel => {
+      const prev = sel.value;
+      sel.innerHTML = chans.map(c => `<option value="${c}">${CH_LABEL[c] || c}</option>`).join('');
+      if (chans.includes(prev)) sel.value = prev;
+    });
+    $$('.otp-only').forEach(el => el.classList.toggle('hidden', !chans.length));
+    $('#otp-off-note').classList.toggle('hidden', !!chans.length);
+    updateRegisterFields();
+    if (authInfo.bootstrap) $('#invite-label-text').textContent = (authInfo.inviteRequired || {}).none ? 'Setup invite code (first account)' : 'Invite code';
+  }
+  $('#form-register').querySelector('select[name=channel]').onchange = updateRegisterFields;
+  refreshAuthInfo();
+
+  function startOtp(kind, out, retry) {
+    otpCtx = { kind, ticket: out.ticket, channel: out.channel, retry };
+    const f = $('#form-otp');
+    f.reset();
+    $('#otp-sent-to').textContent = `We sent a 6-digit code to ${out.sentTo || out.emailHint}. It expires in 10 minutes.`;
+    $('#otp-newpin-label').classList.toggle('hidden', kind !== 'reset');
+    f.querySelector('input[name=newPin]').required = kind === 'reset';
+    const other = (authInfo.channels || []).find(c => c !== out.channel);
+    const ob = $('#btn-otp-other');
+    ob.classList.toggle('hidden', !other || !out.channel);
+    if (other) ob.textContent = other === 'email' ? 'Send to my email instead' : 'Send to WhatsApp instead';
+    ob.dataset.channel = other || '';
+    showAuthForm('form-otp');
+    authErr('');
+    f.querySelector('input[name=otp]').focus();
+  }
+
+  async function finishSession(out, priv, pub) {
+    LinkoStore.saveSession({ token: out.token, user: out.user, privateKeyPkcs8B64: priv, publicKeySpkiB64: pub });
+    if (pub && pub !== out.user.publicKey) {
+      try {
+        const updated = await LinkoApi.req('/api/keys', { method: 'POST', body: { publicKey: pub } });
+        LinkoStore.saveSession({ token: out.token, user: updated.user, privateKeyPkcs8B64: priv, publicKeySpkiB64: pub });
+      } catch {}
+    }
+    otpCtx = null;
+    await bootSession();
+  }
+
+  let pendingKeys = null; // identity keys generated before OTP completes
+
   $('#form-login').onsubmit = async (e) => {
     e.preventDefault();
-    toastError($('#auth-error'), '');
+    authErr('');
     const fd = new FormData(e.target);
-    try {
-      // Ensure we have local identity keys; login does not create them — must exist from register
-      let priv = LinkoStore.getPriv();
-      let pub = LinkoStore.getPub();
-      if (!priv || !pub) {
-        const id = await LinkoCrypto.generateIdentity();
-        priv = id.privateKeyPkcs8B64;
-        pub = id.publicKeySpkiB64;
-      }
+    let priv = LinkoStore.getPriv(), pub = LinkoStore.getPub();
+    if (!priv || !pub) {
+      const id = await LinkoCrypto.generateIdentity();
+      priv = id.privateKeyPkcs8B64; pub = id.publicKeySpkiB64;
+    }
+    pendingKeys = { priv, pub };
+    const doLogin = async (channel) => {
       const out = await LinkoApi.req('/api/login', {
         method: 'POST', auth: false,
-        body: { phone: fd.get('phone'), pin: fd.get('pin') }
+        body: { phone: fd.get('phone'), pin: fd.get('pin'), deviceId: deviceId(), channel: channel || fd.get('channel') || undefined }
       });
-      // Refresh server public key if we rotated locally
-      if (pub !== out.user.publicKey) {
-        await LinkoApi.req('/api/keys', {
-          method: 'POST',
-          body: { publicKey: pub },
-          auth: false // need token — fix
-        }).catch(() => {});
-      }
-      LinkoStore.saveSession({
-        token: out.token,
-        user: out.user,
-        privateKeyPkcs8B64: priv,
-        publicKeySpkiB64: pub
-      });
-      // If key mismatch, push new public key with auth
-      if (pub && pub !== out.user.publicKey) {
-        try {
-          const updated = await LinkoApi.req('/api/keys', { method: 'POST', body: { publicKey: pub } });
-          LinkoStore.saveSession({
-            token: out.token, user: updated.user,
-            privateKeyPkcs8B64: priv, publicKeySpkiB64: pub
-          });
-        } catch {}
-      }
-      await bootSession();
-    } catch (err) {
-      toastError($('#auth-error'), err.message);
-      $('#auth-error').style.color = 'var(--danger)';
-    }
+      if (out.otpRequired) return startOtp('login', out, doLogin);
+      await finishSession(out, priv, pub);
+    };
+    try { await doLogin(); } catch (err) { authErr(err.message); }
   };
 
   $('#form-register').onsubmit = async (e) => {
     e.preventDefault();
-    toastError($('#auth-error'), '');
+    authErr('');
     const fd = new FormData(e.target);
+    if (String(fd.get('pin') || '').length < 6 &&
+        !confirm('Your PIN is shorter than 6 digits. A longer PIN is much harder to guess. Continue anyway?')) return;
     try {
       const id = await LinkoCrypto.generateIdentity();
-      const out = await LinkoApi.req('/api/register', {
-        method: 'POST', auth: false,
-        body: {
-          displayName: fd.get('displayName'),
-          phone: fd.get('phone'),
-          pin: fd.get('pin'),
-          publicKey: id.publicKeySpkiB64
-        }
+      pendingKeys = { priv: id.privateKeyPkcs8B64, pub: id.publicKeySpkiB64 };
+      const doRegister = async (channel) => {
+        const out = await LinkoApi.req('/api/register', {
+          method: 'POST', auth: false,
+          body: {
+            displayName: fd.get('displayName'),
+            phone: fd.get('phone'),
+            email: fd.get('email') || '',
+            pin: fd.get('pin'),
+            inviteCode: fd.get('inviteCode') || '',
+            channel: channel || fd.get('channel') || undefined,
+            deviceId: deviceId(),
+            publicKey: pendingKeys.pub
+          }
+        });
+        if (out.otpRequired) return startOtp('register', out, doRegister);
+        await finishSession(out, pendingKeys.priv, pendingKeys.pub);
+      };
+      await doRegister();
+    } catch (err) { authErr(err.message); }
+  };
+
+  $('#btn-forgot').onclick = () => { authErr(''); showAuthForm('form-reset'); };
+  $('#btn-reset-back').onclick = () => { authErr(''); showAuthForm('form-login'); };
+  $('#form-reset').onsubmit = async (e) => {
+    e.preventDefault();
+    authErr('');
+    const fd = new FormData(e.target);
+    const doReset = async (channel) => {
+      const out = await LinkoApi.req('/api/pin-reset', {
+        method: 'POST', auth: false, body: { phone: fd.get('phone'), channel: channel || fd.get('channel') || undefined }
       });
-      LinkoStore.saveSession({
-        token: out.token,
-        user: out.user,
-        privateKeyPkcs8B64: id.privateKeyPkcs8B64,
-        publicKeySpkiB64: id.publicKeySpkiB64
-      });
-      await bootSession();
-    } catch (err) {
-      toastError($('#auth-error'), err.message);
-      $('#auth-error').style.color = 'var(--danger)';
+      startOtp('reset', out, doReset);
+    };
+    try { await doReset(); } catch (err) { authErr(err.message); }
+  };
+
+  $('#form-otp').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!otpCtx) return;
+    authErr('');
+    const fd = new FormData(e.target);
+    try {
+      if (otpCtx.kind === 'reset') {
+        const id = await LinkoCrypto.generateIdentity();
+        const out = await LinkoApi.req('/api/pin-reset/verify', {
+          method: 'POST', auth: false,
+          body: { ticket: otpCtx.ticket, otp: fd.get('otp'), newPin: fd.get('newPin'), deviceId: deviceId() }
+        });
+        await finishSession(out, id.privateKeyPkcs8B64, id.publicKeySpkiB64);
+        return;
+      }
+      const path = otpCtx.kind === 'register' ? '/api/register/verify' : '/api/login/verify';
+      const out = await LinkoApi.req(path, { method: 'POST', auth: false, body: { ticket: otpCtx.ticket, otp: fd.get('otp') } });
+      await finishSession(out, pendingKeys.priv, pendingKeys.pub);
+    } catch (err) { authErr(err.message); }
+  };
+  $('#btn-otp-resend').onclick = async () => {
+    if (!otpCtx) return;
+    try { await otpCtx.retry(otpCtx.channel); authErr('New code sent', true); } catch (err) { authErr(err.message); }
+  };
+  $('#btn-otp-other').onclick = async () => {
+    if (!otpCtx) return;
+    try { await otpCtx.retry($('#btn-otp-other').dataset.channel); } catch (err) { authErr(err.message); }
+  };
+  $('#btn-otp-back').onclick = () => {
+    const back = otpCtx && otpCtx.kind === 'register' ? 'form-register' : 'form-login';
+    otpCtx = null; authErr(''); showAuthForm(back);
+  };
+
+  async function refreshInvites() {
+    try {
+      const data = await LinkoApi.req('/api/invites');
+      const box = $('#invite-list');
+      box.innerHTML = '';
+      for (const v of data.invites || []) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `<span>${escapeHtml(v.code)}${v.phone ? ' · ' + escapeHtml(v.phone) : ''}</span><strong>${v.used ? 'used' : 'unused'}</strong>`;
+        box.appendChild(row);
+      }
+    } catch {}
+  }
+
+  $('#btn-invite').onclick = async () => {
+    const out = $('#invite-out');
+    try {
+      const phone = $('#invite-phone').value.trim();
+      const data = await LinkoApi.req('/api/invites', { method: 'POST', body: phone ? { phone } : {} });
+      const v = data.invite;
+      out.hidden = false;
+      out.style.color = 'var(--accent)';
+      out.textContent = `Invite code: ${v.code}${v.phone ? ' (only for ' + v.phone + ')' : ''} — valid 7 days, one use. Send it privately.`;
+      try { await navigator.clipboard.writeText(v.code); out.textContent += ' Copied.'; } catch {}
+      $('#invite-phone').value = '';
+      refreshInvites();
+    } catch (e) {
+      out.hidden = false;
+      out.style.color = 'var(--danger)';
+      out.textContent = e.message;
     }
   };
 
@@ -502,7 +647,7 @@
     };
   });
   $('#btn-search').onclick = () => { show('screen-search'); $('#search-input').value = ''; $('#search-results').innerHTML = ''; $('#search-input').focus(); };
-  $('#btn-settings').onclick = () => show('screen-settings');
+  $('#btn-settings').onclick = () => { show('screen-settings'); refreshInvites(); };
   $('#btn-set-server').onclick = () => {
     const v = $('#set-server').value.trim();
     if (v) {

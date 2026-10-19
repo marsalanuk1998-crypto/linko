@@ -1,34 +1,33 @@
-# Linko v1.0.0 delivery
+# Linko v1.2.0 delivery — phone ownership fix (free OTP, no SMS)
 
 ## APK
-- Path: `/workspace/Linko.apk`
-- Size: ~68 KB
-- package: `pk.zaib.linko`
-- versionName: `1.0.0` / versionCode: `1`
-- Keystore: `/workspace/linko-app/android/linko-release.jks`
-- Cert SHA-256: `73:68:6F:CB:7D:BD:4B:4F:CA:8C:BB:01:6F:8A:8F:7C:65:B1:9E:98:87:BD:6F:26:1C:E0:0A:97:6A:35:5C:42`
-- Passwords: see `android/KEYSTORE_NOTES.txt`
+- Path: `/workspace/Linko.apk` — package `pk.zaib.linko`, versionName `1.2.0`, versionCode `3`
+- Default server: `https://linko-018a.onbelmo.uk`
+- Signed with the existing `android/linko-release.jks` (same cert as v1.0/v1.1 → installs as an update)
 
-## Auth + E2EE (plain words)
-- Sign up with phone number + PIN. PIN is hashed (PBKDF2) on the server; never stored plain.
-- Each phone generates an ECDH key pair. Private key stays on the phone. Public key goes to the server so others can encrypt to you.
-- Chat text/files/voice are AES-GCM encrypted on the phone before they touch the network. Server only stores/relays ciphertext.
-- Voice/video calls use WebRTC **DTLS-SRTP** (encrypted media). Server only forwards call signaling (who is calling + SDP/ICE), never call audio/video.
+## What changed
+- Login = **phone + PIN** (phone is your Linko ID).
+- Sign-up sends a free **6-digit OTP via WhatsApp (to that same number) or Email**. No SMS (paid).
+  - WhatsApp OTP proves the number → no invite needed.
+  - Email OTP proves only the email → also needs an **invite code** from an existing user.
+  - If no OTP sender is configured on the server → **invite-only** sign-up.
+- New device login → PIN + OTP. Known device → PIN only.
+- Forgot PIN → OTP → new PIN.
+- Settings → **Invite friend** (one-time code, 7 days, optionally locked to friend's number).
+- Brute-force limits on PIN and OTP; OTP resend limits.
+- Server setup: see `OTP_SETUP.md`. Threat model: `SECURITY.md`.
 
-## Multi-device connect
-```bash
-cd /workspace/linko-app/server && npm start   # port 8787
-```
-On each phone: Server settings → `http://<LAN-IP>:8787` → register different phones → search → chat/call.
-
-Demo server currently runnable on this box at `http://127.0.0.1:8787` (no public IP without user’s cloud/tunnel).
+## Server data / migration
+- User schema is backward compatible (phone stays the key). Old v1.0/v1.1 accounts keep working with PIN-only
+  login but are unverified. Recommended: wipe the Belmo data (redeploy on fresh disk) so everybody re-registers with OTP.
+- New files in `server/data/db/`: `invites.json`, `pending.json`.
 
 ## Tests
-- `tests/server-smoke.js`: 9/9 PASS (auth, search, blind ciphertext relay, call signaling)
-- `tests/e2ee-unit.js`: PASS round-trip + wrong-peer rejected
-- Screens: `screens/01_auth.png` … `04_chat.png`
-- Manual checklist: `tests/MANUAL_CHECKLIST.md`
+- `node tests/auth-otp.js` → 28/28 PASS (OTP register/login/reset, invites, lockouts, invite-only fallback, bootstrap invite) using dev-mode senders.
+- `tests/server-smoke.js` → 9/9 PASS (chat relay, E2EE blind server, call signaling).
+- Headless UI E2E: register via WhatsApp OTP → chats → create invite (screens `05`–`07`).
+- NOT live-tested: real Brevo/Gmail/WhatsApp delivery (needs the owner's keys; SMTP ports are blocked from the build box).
 
-## Blockers needing user cloud account
-- None to install/run on LAN.
-- Optional later: public HTTPS host, TURN server for hard NATs, paid SMS OTP — not required for v1.
+## Belmo
+- Push to GitHub `main`. If Belmo auto-deploy is off: Belmo dashboard → service → **Redeploy**.
+- Then add OTP env vars (`OTP_SETUP.md`) + `LINKO_BOOTSTRAP_INVITE` and redeploy again.

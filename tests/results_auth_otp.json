@@ -1,0 +1,131 @@
+{
+  "at": "2026-10-19T16:42:31.086Z",
+  "passed": 28,
+  "failed": 0,
+  "results": [
+    {
+      "name": "auth-info lists whatsapp+email",
+      "pass": true,
+      "extra": "{\"channels\":[\"whatsapp\",\"email\"],\"emailOtp\":true,\"whatsappOtp\":true,\"inviteRequired\":{\"email\":false,\"whatsapp\":false,\"none\":false},\"bootstrap\":true}"
+    },
+    {
+      "name": "register → 202 otpRequired (whatsapp)",
+      "pass": true,
+      "extra": "WhatsApp +92******111"
+    },
+    {
+      "name": "wrong OTP rejected",
+      "pass": true,
+      "extra": "Wrong code (4 tries left)"
+    },
+    {
+      "name": "correct WhatsApp OTP creates account",
+      "pass": true,
+      "extra": "+923001111111"
+    },
+    {
+      "name": "OTP ticket single-use",
+      "pass": true
+    },
+    {
+      "name": "WhatsApp signup needs no invite",
+      "pass": true
+    },
+    {
+      "name": "Bob created",
+      "pass": true
+    },
+    {
+      "name": "email signup without invite rejected (email does not prove phone)",
+      "pass": true,
+      "extra": "Invite code required — ask a friend on Linko to tap \"Invite friend\""
+    },
+    {
+      "name": "invite created",
+      "pass": true,
+      "extra": "KX783-7L2L4"
+    },
+    {
+      "name": "phone-locked invite rejects other number",
+      "pass": true,
+      "extra": "This invite is for a different phone number"
+    },
+    {
+      "name": "email signup with invite → OTP to email",
+      "pass": true,
+      "extra": "c*@example.com"
+    },
+    {
+      "name": "email OTP creates account",
+      "pass": true
+    },
+    {
+      "name": "already-registered phone rejected",
+      "pass": true,
+      "extra": "Phone already registered"
+    },
+    {
+      "name": "login known device → token, no OTP",
+      "pass": true
+    },
+    {
+      "name": "login new device → OTP required",
+      "pass": true,
+      "extra": "WhatsApp +92******111"
+    },
+    {
+      "name": "new device verified",
+      "pass": true
+    },
+    {
+      "name": "login new device via email",
+      "pass": true
+    },
+    {
+      "name": "PIN brute-force lockout after 5 fails",
+      "pass": true,
+      "extra": "Too many attempts — try again in 15 min"
+    },
+    {
+      "name": "PIN reset via WhatsApp OTP",
+      "pass": true
+    },
+    {
+      "name": "login with new PIN",
+      "pass": true
+    },
+    {
+      "name": "reset for unknown phone gives same-shaped answer",
+      "pass": true
+    },
+    {
+      "name": "OTP resend rate-limited (60s default)",
+      "pass": true,
+      "extra": "Please wait a minute before requesting another code"
+    },
+    {
+      "name": "no SMTP/WA → channels empty",
+      "pass": true
+    },
+    {
+      "name": "bootstrap first account free",
+      "pass": true
+    },
+    {
+      "name": "2nd account without invite rejected",
+      "pass": true
+    },
+    {
+      "name": "2nd account with invite ok",
+      "pass": true
+    },
+    {
+      "name": "LINKO_BOOTSTRAP_INVITE enforced for first account",
+      "pass": true
+    },
+    {
+      "name": "first account with bootstrap invite ok",
+      "pass": true
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "ok": true,
+  "results": [
+    {
+      "name": "health",
+      "pass": true,
+      "detail": "Linko"
+    },
+    {
+      "name": "register",
+      "pass": true,
+      "detail": "LA0CCE4FA / L7819C74F"
+    },
+    {
+      "name": "login",
+      "pass": true,
+      "detail": "token ok"
+    },
+    {
+      "name": "bad-pin-rejected",
+      "pass": true
+    },
+    {
+      "name": "search",
+      "pass": true,
+      "detail": "found bob"
+    },
+    {
+      "name": "ws-chat-relay",
+      "pass": true,
+      "detail": "ciphertext unchanged"
+    },
+    {
+      "name": "server-blind-ciphertext",
+      "pass": true
+    },
+    {
+      "name": "call-signaling",
+      "pass": true
+    },
+    {
+      "name": "no-pin-in-public-user",
+      "pass": true
+    }
+  ]
+}

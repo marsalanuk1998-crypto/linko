@@ -46,6 +46,11 @@ function readBody(req) {
   });
 }
 
+function clientIp(req) {
+  const xf = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return xf || req.socket.remoteAddress || '?';
+}
+
 function bearer(req) {
   const h = req.headers.authorization || '';
   const m = /^Bearer\s+(.+)$/i.exec(h);
@@ -133,19 +138,61 @@ async function handleApi(req, res, pathname) {
 
   try {
     if (pathname === '/api/health' && req.method === 'GET') {
-      return json(res, 200, { ok: true, name: 'Linko', version: '1.0.0', ts: Date.now() });
+      return json(res, 200, { ok: true, name: 'Linko', version: '1.2.0', otpChannels: auth.otpChannels(), ts: Date.now() });
     }
 
     if (pathname === '/api/register' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
-      const out = auth.register(body);
-      return json(res, 201, out);
+      const out = await auth.register(body, { ip: clientIp(req) });
+      return json(res, out.otpRequired ? 202 : 201, out);
+    }
+
+    if (pathname === '/api/register/verify' && req.method === 'POST') {
+      const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      return json(res, 201, auth.verifyRegistration(body));
+    }
+
+    if (pathname === '/api/login/verify' && req.method === 'POST') {
+      const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      return json(res, 200, auth.verifyLogin(body));
+    }
+
+    if (pathname === '/api/pin-reset' && req.method === 'POST') {
+      const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      return json(res, 202, await auth.requestPinReset(body));
+    }
+
+    if (pathname === '/api/pin-reset/verify' && req.method === 'POST') {
+      const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      return json(res, 200, auth.verifyPinReset(body));
     }
 
     if (pathname === '/api/login' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
-      const out = auth.login(body);
-      return json(res, 200, out);
+      const out = await auth.login(body, { ip: clientIp(req) });
+      return json(res, out.otpRequired ? 202 : 200, out);
+    }
+
+    if (pathname === '/api/auth-info' && req.method === 'GET') {
+      return json(res, 200, {
+        channels: auth.otpChannels(),
+        emailOtp: auth.emailOtpEnabled(), whatsappOtp: auth.waOtpEnabled(),
+        inviteRequired: { email: auth.inviteRequired('email'), whatsapp: auth.inviteRequired('whatsapp'), none: auth.inviteRequired(null) },
+        bootstrap: auth.bootstrapMode()
+      });
+    }
+
+    if (pathname === '/api/invites' && req.method === 'POST') {
+      const u = requireUser(req);
+      if (!u) return json(res, 401, { error: 'Unauthorized' });
+      const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      return json(res, 201, { invite: auth.createInvite(u.id, { phone: body.phone }) });
+    }
+
+    if (pathname === '/api/invites' && req.method === 'GET') {
+      const u = requireUser(req);
+      if (!u) return json(res, 401, { error: 'Unauthorized' });
+      return json(res, 200, { invites: auth.listInvites(u.id) });
     }
 
     if (pathname === '/api/me' && req.method === 'GET') {

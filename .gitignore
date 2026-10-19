@@ -1,0 +1,12 @@
+node_modules/
+server/node_modules/
+server/data/
+server/.secret
+android/build/
+android/keystore.env
+android/KEYSTORE_NOTES.txt
+android/linko-release.jks
+*.apk
+screens/
+tests/node_modules/
+.tmp/

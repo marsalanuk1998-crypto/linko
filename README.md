@@ -79,3 +79,7 @@ See **[SECURITY.md](./SECURITY.md)** — E2EE chat, DTLS-SRTP calls, PIN hashing
 - Phone numbers are not SMS-verified
 - Server sees metadata (who/when), not message or call media plaintext
 - For public internet, put the server behind HTTPS (Caddy/nginx) and use `wss://`
+
+
+## v1.2.0 auth
+Phone + PIN login. Free OTP via WhatsApp (proves number) or Email, invite codes otherwise. No SMS. Setup: `OTP_SETUP.md`, threat model: `SECURITY.md`.
